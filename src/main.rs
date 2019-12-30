@@ -2,6 +2,20 @@ extern crate glutin;
 extern crate gl;
 
 use glutin::{dpi::LogicalSize, Api, GlRequest, ContextBuilder, GlProfile};
+use gl::types::*;
+use std::ffi::{CString, c_void};
+use std::{ptr, mem};
+
+mod shader;
+use shader::Shader;
+
+// Vertex data
+#[rustfmt::skip]
+static VERTEX_DATA: [GLfloat; 9] = [
+    0.0, 0.5, 0.0,
+    0.5, -0.5, 0.0,
+    -0.5, -0.5, 0.0,
+];
 
 fn main() {
     let mut events_loop = glutin::EventsLoop::new();
@@ -28,6 +42,44 @@ fn main() {
         gl::ClearColor(0.0, 0.0, 0.0, 1.0);
     }
 
+    // Create GLSL shaders
+    let shader = Shader::new("resources/shaders/shader.vs", "resources/shaders/shader.fs");
+
+    let mut vao = 0;
+    let mut vbo = 0;
+
+    unsafe {
+        // Create Vertex Array Object
+        gl::GenVertexArrays(1, &mut vao);
+        gl::BindVertexArray(vao);
+
+        // Create Vertex Buffer Object and copy the vertex data to it
+        gl::GenBuffers(1, &mut vbo);
+        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+        gl::BufferData(
+            gl::ARRAY_BUFFER,
+            (VERTEX_DATA.len() * mem::size_of::<GLfloat>()) as isize,
+            &VERTEX_DATA as *const f32 as *const c_void,
+            gl::STATIC_DRAW,
+        );
+
+        // Use shader program
+        gl::UseProgram(shader.id);
+        gl::BindFragDataLocation(shader.id, 0, CString::new("out_color").unwrap().as_ptr());
+
+        // Specify the layout of the vertex data
+        let pos_attr = gl::GetAttribLocation(shader.id, CString::new("position").unwrap().as_ptr());
+        gl::EnableVertexAttribArray(pos_attr as GLuint);
+        gl::VertexAttribPointer(
+            pos_attr as GLuint,
+            3,
+            gl::FLOAT,
+            gl::FALSE as GLboolean,
+            0,
+            ptr::null(),
+        );
+    }
+
     let mut running = true;
     while running {
         events_loop.poll_events(|event| {
@@ -51,9 +103,21 @@ fn main() {
         });
 
         unsafe {
+            // Clear the screen to black
+            gl::ClearColor(0.3, 0.3, 0.3, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
+
+            // Draw a triangle from the 3 vertices
+            gl::DrawArrays(gl::TRIANGLES, 0, 3);
         }
 
         window.swap_buffers().unwrap();
+    }
+
+    // Cleanup
+    shader.delete();
+    unsafe {
+        gl::DeleteBuffers(1, &vbo);
+        gl::DeleteVertexArrays(1, &vao);
     }
 }
