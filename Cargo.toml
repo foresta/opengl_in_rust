@@ -9,3 +9,5 @@ edition = "2018"
 [dependencies]
 glutin = "0.21.2"
 gl = "0.14.0"
+cgmath = "0.17.0"
+c_str_macro = "1.0.2"

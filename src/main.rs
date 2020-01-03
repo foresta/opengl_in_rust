@@ -5,6 +5,9 @@ use glutin::{dpi::LogicalSize, Api, GlRequest, ContextBuilder, GlProfile};
 use gl::types::*;
 use std::ffi::{CString, c_void};
 use std::{ptr, mem};
+use std::time::Duration;
+use cgmath::{Matrix4, SquareMatrix, Point3, Vector3, perspective, Deg};
+use c_str_macro::c_str;
 
 mod shader;
 use shader::Shader;
@@ -18,10 +21,13 @@ static VERTEX_DATA: [GLfloat; 9] = [
 ];
 
 fn main() {
+    let window_width= 640.0;
+    let window_height= 480.0;
+
     let mut events_loop = glutin::EventsLoop::new();
     let window_builder = glutin::WindowBuilder::new()
         .with_title("OpenGL in Rust")
-        .with_dimensions(LogicalSize::new(400.0, 300.0))
+        .with_dimensions(LogicalSize::new(window_width, window_height))
         .with_resizable(true);
     let context_builder = ContextBuilder::new()
         .with_gl(GlRequest::Specific(Api::OpenGl, (3, 3)))
@@ -45,6 +51,19 @@ fn main() {
     // Create GLSL shaders
     let shader = Shader::new("resources/shaders/shader.vs", "resources/shaders/shader.fs");
 
+    // Matrix
+    let model_matrix = Matrix4::identity();
+    let view_matrix = Matrix4::look_at(
+        Point3 { x: 0.0, y: 0.0, z: 5.0 },
+        Point3 { x: 0.0, y: 0.0, z: 0.0 },
+        Vector3 { x: 0.0, y: 1.0, z: 0.0 },
+    );
+    let projection_matrix = perspective(
+        Deg(45.0f32),
+        window_width as f32 / window_height as f32,
+        0.1,
+        100.0);
+
     let mut vao = 0;
     let mut vbo = 0;
 
@@ -63,12 +82,8 @@ fn main() {
             gl::STATIC_DRAW,
         );
 
-        // Use shader program
-        gl::UseProgram(shader.id);
-        gl::BindFragDataLocation(shader.id, 0, CString::new("out_color").unwrap().as_ptr());
-
         // Specify the layout of the vertex data
-        let pos_attr = gl::GetAttribLocation(shader.id, CString::new("position").unwrap().as_ptr());
+        let pos_attr = gl::GetAttribLocation(shader.id, CString::new("aPosition").unwrap().as_ptr());
         gl::EnableVertexAttribArray(pos_attr as GLuint);
         gl::VertexAttribPointer(
             pos_attr as GLuint,
@@ -78,6 +93,10 @@ fn main() {
             0,
             ptr::null(),
         );
+
+        // unset
+        gl::BindBuffer(gl::ARRAY_BUFFER, 0);
+        gl::BindVertexArray(0);
     }
 
     let mut running = true;
@@ -103,20 +122,31 @@ fn main() {
         });
 
         unsafe {
+            gl::Viewport(0, 0, window_width as i32, window_height as i32);
+
             // Clear the screen to black
             gl::ClearColor(0.3, 0.3, 0.3, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
 
+            // Use shader program
+            shader.use_program();
+            shader.set_mat4(c_str!("aModel"), &model_matrix);
+            shader.set_mat4(c_str!("aView"), &view_matrix);
+            shader.set_mat4(c_str!("aProjection"), &projection_matrix);
+
             // Draw a triangle from the 3 vertices
+            gl::BindVertexArray(vao);
             gl::DrawArrays(gl::TRIANGLES, 0, 3);
         }
 
         window.swap_buffers().unwrap();
+
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
 
     // Cleanup
-    shader.delete();
     unsafe {
+        shader.delete();
         gl::DeleteBuffers(1, &vbo);
         gl::DeleteVertexArrays(1, &vao);
     }

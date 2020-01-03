@@ -1,9 +1,16 @@
+use cgmath::Matrix;
 use gl::types::*;
 use std::ptr;
-use std::ffi::CString;
+use std::ffi::{CString, CStr};
 use std::fs::File;
 use std::io::Read;
 use std::str;
+
+#[allow(dead_code)]
+type Vector3 = cgmath::Vector3<f32>;
+
+#[allow(dead_code)]
+type Matrix4 = cgmath::Matrix4<f32>;
 
 pub struct Shader {
     pub id: u32,
@@ -25,8 +32,21 @@ impl Shader {
         Shader { id }
     }
 
-    pub fn delete(&self) {
-        unsafe { gl::DeleteProgram(self.id) };
+    pub unsafe fn delete(&self) {
+        gl::DeleteProgram(self.id);
+    }
+
+    pub unsafe fn use_program(&self) {
+        gl::UseProgram(self.id);
+    }
+
+    pub unsafe fn set_mat4(&self, name: &CStr, value: &Matrix4) {
+        gl::UniformMatrix4fv(
+            gl::GetUniformLocation(self.id, name.as_ptr()),
+            1,
+            gl::FALSE,
+            value.as_ptr(),
+        );
     }
 
     fn link_program(vs: GLuint, fs: GLuint) -> GLuint {
@@ -63,6 +83,7 @@ impl Shader {
             program
         }
     }
+
     fn compile(src: &str, ty: GLenum) -> GLuint {
         let shader;
         unsafe {

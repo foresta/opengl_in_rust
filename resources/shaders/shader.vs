@@ -1,6 +1,14 @@
-#version 150
-in vec3 position;
+#version 330
+
+layout (location = 0) in vec3 aPosition;
+
+uniform mat4 aModel;
+uniform mat4 aView;
+uniform mat4 aProjection;
+
+out vec3 FragPosition;
 
 void main() {
-    gl_Position = vec4(position, 1.0);
+    FragPosition = vec3(aModel * vec4(aPosition, 1.0));
+    gl_Position = aProjection * aView * vec4(FragPosition, 1.0);
 }
